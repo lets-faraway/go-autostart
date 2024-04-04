@@ -1,22 +1,19 @@
 package autostart
 
-// #cgo LDFLAGS: -lole32 -luuid
-/*
-#define WIN32_LEAN_AND_MEAN
-#include <stdint.h>
-#include <windows.h>
-
-uint64_t CreateShortcut(char *shortcutA, char *path, char *args);
-*/
-import "C"
-
 import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
+
+const powershellCreateShortcutTemplate = `$WshShell = New-Object -comObject WScript.Shell
+$Shortcut = $WshShell.CreateShortcut("%s")
+$Shortcut.TargetPath = "%s"
+$Shortcut.Arguments = "%s"
+$Shortcut.Save()`
 
 var startupDir string
 
@@ -28,21 +25,30 @@ func (a *App) path() string {
 	return filepath.Join(startupDir, a.Name+".lnk")
 }
 
+func (a *App) createShortcut(lnkPath string, targetPath string, arg string) error {
+	// PowerShell script to create a shortcut
+	psScript := fmt.Sprintf(powershellCreateShortcutTemplate, lnkPath, targetPath, arg)
+
+	// Execute the PowerShell script
+	cmd := exec.Command("powershell", "-Command", psScript)
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (a *App) IsEnabled() bool {
 	_, err := os.Stat(a.path())
 	return err == nil
 }
 
 func (a *App) Enable() error {
-	path := a.Exec[0]
-	args := strings.Join(a.Exec[1:], " ")
-
 	if err := os.MkdirAll(startupDir, 0777); err != nil {
 		return err
 	}
-	res := C.CreateShortcut(C.CString(a.path()), C.CString(path), C.CString(args))
-	if res != 0 {
-		return errors.New(fmt.Sprintf("autostart: cannot create shortcut '%s' error code: 0x%.8x", a.path(), res))
+	if err := a.createShortcut(a.path(), a.Exec[0], strings.Join(a.Exec[1:], " ")); err != nil {
+		return errors.New(fmt.Sprintf("autostart: cannot create shortcut '%s'", a.path()))
 	}
 	return nil
 }
