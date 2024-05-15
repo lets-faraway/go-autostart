@@ -12,6 +12,8 @@ const jobTemplate = `<?xml version="1.0" encoding="UTF-8"?>
   <dict>
     <key>Label</key>
     <string>{{.Name}}</string>
+    <key>AssociatedBundleIdentifiers</key>
+    <string>{{.Name}}</string>
     <key>ProgramArguments</key>
       <array>
         {{range .Exec -}}
